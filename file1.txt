@@ -1,0 +1,7 @@
+mkdir ali
+opendir ali
+mk alifile
+open alifile
+write a
+read alifile
+exit
