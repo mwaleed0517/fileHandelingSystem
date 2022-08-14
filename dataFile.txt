@@ -1,0 +1,7 @@
+hi i am waleed
+this file has multiple lines.
+this file is created so that it can used for writing data in mmap using file.
+this has name dataFile
+this file file has type .txt
+this file can be accessed in program by using dataFile.txt as name
+this is the last line of file dataFile

@@ -1,0 +1,77 @@
+If MMAP dont exist, it will be created automatically.
+
+# named is an empty, unaccesable and first file of our system.
+This file was created so we can delete first file.
+
+/# is used to represent main/super directory in our map.
+
+when ever we need to write something in MMAP, its length is calculated and written at memory block of that size is allocated in MMAP and pointers are set at different locations for diffrent things.
+
+#########(Empty pointer) mean no pointer is set at that place
+	If at 2nd pointer of file mean last file in MMAP.
+	If at 1st pointer of file mean no data in file.
+	If at the data block mean last data block for the file.
+
+file in MMAP:
+	FileName,1st pointer,2ndpointer
+	1st pointer tells the location for the first data block of file.
+	2nd pointer tells the location of next file in our mmap.
+	Initially all pointers are set as ######### mean empty pointer.
+	The location or this file is calculated and then write as the second pointer of last file created.
+	If file being created is the first file of mmap then pointer will be set at the # file.
+	2 files with same name cant exist in onne folder.
+
+folders in MMAP:
+	As such folder type thing don't exist in our structure but it was achived by adding file name along with folder name.
+	Lets say a file names file1 exists in folder2 which is subfolder of folder1.
+	User will open folder1 first and over name will be   folder1.
+	Then user will open folder2 and over name will be    folder1/folder2.
+	Now when user opens file1 the over name will become  folder1/folder2/file1.
+	Which will be the name of our file1 which exists in folder2, sub folder of folder1.
+	
+	To show the existans of folder we make a non-accessable file in the folder with name #.
+	Name of folder are independent of files Name.
+
+Data in files in mmap:
+	When first data block is writen in the MMAP, the data is writen at the end in MMAP.
+	The start location of data block is writen at 1st pointer of the file which it belongs to.
+	Before writing the data a uniqe charecter and empty pointer is appended at the end of data.
+	
+	When data is writen for 2nd time it will be writen at the end in MMAP but this time pointer will be writen at the end on last data block.
+
+mk fileName
+	Makes a file in mmap with a speified file name along with 2 pointers embaded, seperated by comma.
+
+mkdir folderName
+	Same above procces is done with /# appanded at the end of folder name as explained in section "folders in MMAP".
+
+delete
+	delete function can only delete the current file open(OPENED FILE).
+	Folders cant be deleted in our design.
+
+write mode(a/w)
+	write mode(a/w) function is used to write data in append(a) or write(w) mode.
+	In write mode data block is writen at the end of MMAP and location is set as the 1st pointer of file to which that data belong.
+	In append mode data block is writen at the end of MMAP and location is set at the end of last data block of file to which that data belong.
+	If File hase no data/Data is being wriiten for first time then it is automatically opened in write(w) mode.
+
+read
+	In read function, File name is reached anf 1st pointer is read from that line.
+	The cursier is seeked at that pointer and file read line by line unless we reach the line containing UNIQE DATA CHARECTER.
+	The pointer for next data block is read from the end of current data block and the seeked and same proccess is repeated.
+	If #########(Empty poniter) at the data pointer mean current data block is last data block.
+
+open
+	First the file is checked if it exist.
+	If yes then its name is added in current file open variable seperated by /.
+
+opendir
+	folder name appended with /# is appended to current file open variable, seperated by /, after checking.
+
+close
+	/# is removed from end of variable current file open if exists.
+	variable current file open is split at /.
+	Last name is removed from list.
+	Other are added to variable current file open sapperated by /.
+	
+Other functions same functionalinty with combination of multiple functions.
