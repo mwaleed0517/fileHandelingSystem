@@ -5,6 +5,7 @@ import time
 
 class FileHandling:
     def __init__(self):
+        self.file_empty = False
         self.create_MMAP_if_dont_exist()
         file = open('MMAP.txt', 'r+')
         self.mmap_object = mmap.mmap(file.fileno(), length=0, access=mmap.ACCESS_WRITE)
@@ -12,6 +13,8 @@ class FileHandling:
         self.next_p_start=2
         self.createFuncLock = threading.Lock()
         self.lock = threading.Lock()
+        if self.file_empty == True:
+            self.create_file('#')
 
     def __enter__(self):
         return self
@@ -114,7 +117,6 @@ class FileHandling:
                 self.create_room_in_mmap(present_location+size_of_mmapWriteforFile)
                 self.set_data_at(present_location,mmapWriteforFile)
                 self.lock.release()
-                
                 self.createFuncLock.release()
                 
     def delete_file(self,file_name):
@@ -123,7 +125,7 @@ class FileHandling:
         ToBeChanged_file_pointer=''
         while True:
             mmap_list,null=self.get_lists_for_mmap(next_p)
-            if file_name in mmap_list[0]:
+            if file_name == mmap_list[0]:
                 next_file_pointer = mmap_list[2]
                 break
             else:
@@ -160,7 +162,7 @@ class FileHandling:
                 lines = self.mmap_object.readline().decode()
                 # if last line of data block the move to next block
                 if 'POPDATA#TEECFDIMMAPF' not in lines:
-                    data_to_print = lines
+                    data_to_print += lines
                     file_data_pointer = ''
                 else:
                     self.lock.release()
@@ -173,7 +175,7 @@ class FileHandling:
             # return the data read
             return data_to_print
 
-    def write_file(self,fWriteMode,data,file_name):
+    def write_file(self,file_name,fWriteMode,data):
         desired_list,current=self.mmap_for_specific_file(file_name)
         # writing in write mode
         if fWriteMode.lower()=="w":
@@ -196,6 +198,10 @@ class FileHandling:
             
             file_data_pointer = desired_list[1]
             current_data_pointer = ''
+            
+            if file_data_pointer == "#########":
+                self.write_file(file_name,'w',data)
+                return
             
             while True:
                 current_data_pointer = file_data_pointer
@@ -267,6 +273,13 @@ class FileHandling:
         data_to_return = ''
         while True:
             mmap_list, null = self.get_lists_for_mmap(next_pointer)
+            if '#' == mmap_list[0]:
+                if "#########" in mmap_list[2]:
+                    break
+                else:
+                    next_pointer = int(mmap_list[2])
+                    continue
+            
             if '/#' in mmap_list[0]:
                 pass
             else:
@@ -281,7 +294,7 @@ class FileHandling:
                 data = ''
                 
                 if "#########" in mmap_list[1]:
-                    data_to_return += '\nFile Name:' + file_name + '\tFile Path:' + path + '\tFile Data Length: ', 'No Data In File'
+                    data_to_return += '\nFile Name:' + file_name + '\tFile Path:' + path + '\tFile Data Length: ' + 'No Data In File'
                 else:
                     current_data_pointer = ''
                     while True:
@@ -299,17 +312,17 @@ class FileHandling:
                             file_data_pointer = lines[-10:-1]
                         if file_data_pointer == "#########":
                             break
-                    data_to_return += '\nFile Name:' + file_name + '\tFile Path:' + path + '\tFile Data Length: ', len(data), 'bytes'
+                    data_to_return += '\nFile Name:' + file_name + '\tFile Path:' + path + '\tFile Data Length: ' + str(len(data)) + 'bytes'
             if "#########" in mmap_list[2]:
                 break
 
             next_pointer = int(mmap_list[2])
         
         if data_to_return == '':
-            return 'No Have Been Created'
+            return 'Nothing Have Been Created'
         return data_to_return
 
-    def move_file(self,file_name,source,destination):
+    def move_file(self,source,destination):
         file_data,null=self.mmap_for_specific_file(source)
         self.set_pointer_for_new_file()
         present_location=self.mmap_object.size()
@@ -321,153 +334,159 @@ class FileHandling:
         self.lock.release()
         self.delete_file(source)
             
-    def move_data(self,startStr,sizeStr,targetStr,file_name):
-            desired_list,current=self.mmap_for_specific_file(file_name)
-            if "#########" == desired_list[1]:
-                return
-            else:
-                start=int(startStr)
-                size=int(sizeStr)
-                target=int(targetStr)
-                data=''
-                data_pointers=[]
-                data_at_pointer_size=[]
-                data_pointers.append(desired_list[1])
-                file_data_pointer = desired_list[1]
-                self.lock.acquire()
-                while True:
-                    if file_data_pointer != '':
-                        self.mmap_object.seek(int(file_data_pointer))
-                    lines = self.mmap_object.readline().decode()
-                    if 'POPDATA#TEECFDIMMAPF' not in lines:
-                        lines = lines
-                        file_data_pointer = ''
-                    else:
-                        file_data_pointer = lines[-10:-1]
-                        lines = lines[0:len(lines) - 30]
-                    data += lines
-                    data_at_pointer_size.append(len(lines))
-                    if file_data_pointer == "#########":
-                        break
-                    data_pointers.append(self.mmap_object.tell())
-                self.lock.release()
-
-                if len(data)<start+size:
-                    print("Data Location Out of Range")
-                elif len(data)<target+size:
-                    print("Target Out Of Range")
-                else:
-                    length=len(data)
-                    data_to_move=data[start-1:start+size-1]
-                    data = data[0:start-1]+data[start+size-1:]
-                    if target == 1:
-                        data_after_move = data_to_move + data
-                    elif target-size ==len(data)-size:
-                        data_after_move = data + data_to_move
-                    else:
-                        data_after_move = data[0:target-1] + data_to_move + data[target-1:]
-                    
-                    i=0
-                    list_size = len(data_at_pointer_size)
-                    data_to_write = data_after_move[0:data_at_pointer_size[i]]
-                    for x in data_pointers:
-                        write_at_location=int(x)
-                        self.lock.acquire()
-                        self.set_data_at(int(write_at_location),str(data_to_write))
-                        self.lock.release()
-                        if i+2<list_size:
-                            data_to_write = data_after_move[data_at_pointer_size[i]:data_at_pointer_size[i+1]]
-                        else:
-                            data_to_write = data_after_move[data_at_pointer_size[i]:]
-                        i+=1
-    
-    def truncate_data(self,sizeStr,file_name):
-        if '/#' in file_name:
-            print("No File Open")
+    def move_data(self,file_name,startStr,sizeStr,targetStr):
+        desired_list,current=self.mmap_for_specific_file(file_name)
+        if "#########" == desired_list[1]:
+            return 'No Data In File'
         else:
-            desired_list,current=self.mmap_for_specific_file(file_name)
-            if "#########" == desired_list[1]:
-                print('NO DATA IN THIS FILE!')
-            else:
-                size=int(sizeStr)
-                data=''
-                data_block_end_pointers = []
-                data_block_at_pointer_size=[]
-                file_data_pointer = desired_list[1]
-                x=0
-                self.lock.acquire()
-                while True:
-                    if file_data_pointer != '':
-                        self.mmap_object.seek(int(file_data_pointer))
-                    lines = self.mmap_object.readline().decode()
-                    if 'POPDATA#TEECFDIMMAPF' not in lines:
-                        lines = lines
-                        file_data_pointer = ''
-                        x+=len(lines)
-                    else:
-                        file_data_pointer = lines[-10:-1]
-                        lines = lines[0:len(lines) - 30]
-                        x+=len(lines)
-                        data_block_end_pointers.append(self.mmap_object.tell())
-                        data_block_at_pointer_size.append(x)
-                        x=0
-                    data += lines
-                    time.sleep(1)
-                    if file_data_pointer == "#########":
-                        break
-                self.lock.release()
-                data_size=len(data)
-                if data_size<size:
-                    print("Truncate size Out of Range")
-                elif data_size==size:
-                    self.lock.acquire()
-                    self.set_data_at(current-20,"#########")
-                    self.lock.release()
+            start=int(startStr)
+            size=int(sizeStr)
+            target=int(targetStr)
+            data=''
+            data_pointers=[]
+            data_at_pointer_size=[]
+            data_pointers.append(desired_list[1])
+            file_data_pointer = desired_list[1]
+            self.lock.acquire()
+            while True:
+                if file_data_pointer != '':
+                    self.mmap_object.seek(int(file_data_pointer))
+                lines = self.mmap_object.readline().decode()
+                if 'POPDATA#TEECFDIMMAPF' not in lines:
+                    lines = lines
+                    file_data_pointer = ''
                 else:
-                    data_to_write=data[0:data_size-size]
-                    i = 0
-                    x = 0
-                    y = len(data_to_write)
-                    while True:
-                        x = data_block_at_pointer_size[i]
-                        if y > x:
-                            y -= x
-                            i+=1
-                        else:
-                            break
-                    if i == 0:
-                        location_to_write_at_location=current-20
+                    file_data_pointer = lines[-10:-1]
+                    lines = lines[0:len(lines) - 30]
+                data += lines
+                data_at_pointer_size.append(len(lines))
+                if file_data_pointer == "#########":
+                    break
+                data_pointers.append(self.mmap_object.tell())
+            self.lock.release()
+            
+            if len(data)<start+size-1:
+                return "Data Location Out of Range"
+            elif len(data)<target+size-1:
+                return "Target Out Of Range"
+            else:
+                length=len(data)
+                data_to_move=data[start-1:start+size-1]
+                data = data[0:start-1]+data[start+size-1:]
+                if target == 1:
+                    data_after_move = data_to_move + data
+                elif target-size ==len(data)-size:
+                    data_after_move = data + data_to_move
+                else:
+                    data_after_move = data[0:target-1] + data_to_move + data[target-1:]
+                
+                i=0
+                list_size = len(data_at_pointer_size)
+                data_to_write = data_after_move[0:data_at_pointer_size[i]]
+                for x in data_pointers:
+                    write_at_location=int(x)
+                    self.lock.acquire()
+                    self.set_data_at(int(write_at_location),str(data_to_write))
+                    self.lock.release()
+                    if i+2<list_size:
+                        data_to_write = data_after_move[data_at_pointer_size[i]:data_at_pointer_size[i+1]]
+                    else:
+                        data_to_write = data_after_move[data_at_pointer_size[i]:]
+                    i+=1
+                
+                return 'Data Moved Successfully'
+    
+    def truncate_data(self,file_name,sizeStr):
+        desired_list,current=self.mmap_for_specific_file(file_name)
+        if "#########" == desired_list[1]:
+            return 'NO DATA IN THIS FILE!'
+        else:
+            size=int(sizeStr)
+            data=''
+            data_block_end_pointers = []
+            data_block_at_pointer_size=[]
+            file_data_pointer = desired_list[1]
+            x=0
+            while True:
+                if file_data_pointer != '':
+                    self.lock.acquire()
+                    self.mmap_object.seek(int(file_data_pointer))
+                
+                lines = self.mmap_object.readline().decode()
+                
+                if 'POPDATA#TEECFDIMMAPF' not in lines:
+                    lines = lines
+                    x+=len(lines)
+                    file_data_pointer = ''
+                else:
+                    self.lock.release()
+                    file_data_pointer = lines[-10:-1]
+                    lines = lines[0:len(lines) - 30]
+                    x+=len(lines)
+                    data_block_end_pointers.append(self.mmap_object.tell())
+                    data_block_at_pointer_size.append(x)
+                    x=0
+                data += lines
+                if file_data_pointer == "#########":
+                    break
+                
+            data_size=len(data)
+            if data_size<size:
+                return "Truncate size Out of Range"
+            elif data_size==size:
+                self.lock.acquire()
+                self.set_data_at(current-20,"#########")
+                self.lock.release()
+            else:
+                data_to_write=data[0:data_size-size]
+                i = 0
+                x = 0
+                y = len(data_to_write)
+                while True:
+                    x = data_block_at_pointer_size[i]
+                    if y > x:
+                        y -= x
+                        i+=1
+                    else:
+                        break
+                if i == 0:
+                    location_to_write_at_location=current-20
+                    self.lock.acquire()
+                    location_to_write=str(self.mmap_object.size())
+                    location_to_write=location_to_write.strip().zfill(9)
+                    self.set_data_at(location_to_write_at_location,location_to_write)
+                    self.create_room_in_mmap(self.mmap_object.size()+len(data_to_write)+30)
+                    self.set_data_at(int(location_to_write),data_to_write+'POPDATA#TEECFDIMMAPF#########\n')
+                    self.lock.release()
+                    return 'Data Truncated Successfully'
+                else:
+                    if x == y:
+                        location_to_write_at_location=data_block_end_pointers[i]-10
+                        location_to_write = '#########'
                         self.lock.acquire()
-                        location_to_write=str(self.mmap_object.size())
+                        self.set_data_at(location_to_write_at_location,location_to_write)
+                        self.lock.release()
+                        return 'Data Truncated Successfully'
+                    else:
+                        location_to_write_at_location=data_block_end_pointers[i-1]-10
+                        z=len(data_to_write)
+                        data_to_write = data_to_write[z-y:]
+                        self.lock.acquire()
+                        location_to_write = str(self.mmap_object.size())
                         location_to_write=location_to_write.strip().zfill(9)
                         self.set_data_at(location_to_write_at_location,location_to_write)
                         self.create_room_in_mmap(self.mmap_object.size()+len(data_to_write)+30)
                         self.set_data_at(int(location_to_write),data_to_write+'POPDATA#TEECFDIMMAPF#########\n')
                         self.lock.release()
-                    else:
-                        if x == y:
-                            location_to_write_at_location=data_block_end_pointers[i]-10
-                            location_to_write = '#########'
-                            self.lock.acquire()
-                            self.set_data_at(location_to_write_at_location,location_to_write)
-                            self.lock.release()
-                            return
-                        else:
-                            location_to_write_at_location=data_block_end_pointers[i-1]-10
-                            z=len(data_to_write)
-                            data_to_write = data_to_write[z-y:]
-                            self.lock.acquire()
-                            location_to_write = str(self.mmap_object.size())
-                            location_to_write=location_to_write.strip().zfill(9)
-                            self.set_data_at(location_to_write_at_location,location_to_write)
-                            self.create_room_in_mmap(self.mmap_object.size()+len(data_to_write)+30)
-                            self.set_data_at(int(location_to_write),data_to_write+'POPDATA#TEECFDIMMAPF#########\n')
-                            self.lock.release()
+                    
+                        return 'Data Truncated Successfully'
                            
     def create_MMAP_if_dont_exist(self):
         if (os.path.isfile("MMAP.txt")):
             pass
         else:
             f = open("MMAP.txt", "w")
-            f.write("\n") 
+            f.write("\n")
+            f.close
+            self.file_empty = True
 # END
