@@ -1,0 +1,6 @@
+mkdir human
+opendir human
+mk humanfile
+open humanfile
+write w
+exit

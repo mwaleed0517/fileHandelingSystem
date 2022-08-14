@@ -1,0 +1,7 @@
+mkdir ammar
+opendir ammar
+mk ammarfile
+open ammarfile
+write w
+read ammarfile
+exit

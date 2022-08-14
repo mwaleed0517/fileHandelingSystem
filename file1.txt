@@ -2,6 +2,6 @@ mkdir ali
 opendir ali
 mk alifile
 open alifile
-write a
+write w
 read alifile
 exit

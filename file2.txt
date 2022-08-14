@@ -1,0 +1,7 @@
+mkdir waleed
+opendir waleed
+mk waleedfile
+open waleedfile
+write w
+read waleedfile
+exit
